@@ -4,6 +4,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -13,7 +15,14 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+
+import com.spring.security.auth.ApplicationUserService;
+
 import static com.spring.security.securityconfig.ApplicationUserRole.*;
+
+import java.util.concurrent.TimeUnit;
+
 import static com.spring.security.securityconfig.ApplicationUserPermission.*;
 
 @Configuration
@@ -22,9 +31,11 @@ import static com.spring.security.securityconfig.ApplicationUserPermission.*;
 public class ApplicationSecurityConfig extends WebSecurityConfigurerAdapter{
 
 	private final PasswordEncoder passwordEncoder;
+	private final ApplicationUserService applicationUserService;
 	
 	@Autowired
-	public ApplicationSecurityConfig(PasswordEncoder passwordEncoder) {
+	public ApplicationSecurityConfig(PasswordEncoder passwordEncoder, ApplicationUserService applicationUserService) {
+		this.applicationUserService = applicationUserService;
 		this.passwordEncoder = passwordEncoder;
 	}
 	
@@ -51,37 +62,62 @@ public class ApplicationSecurityConfig extends WebSecurityConfigurerAdapter{
 		.and()
 		//.httpBasic();
 		.formLogin()
-		.loginPage("/login").permitAll();
+		.loginPage("/login")
+		.permitAll()
+		.passwordParameter("password")
+		.usernameParameter("username")
+		.defaultSuccessUrl("/courses", true)
+		.and()
+		.rememberMe()
+			.tokenValiditySeconds((int) TimeUnit.DAYS.toSeconds(21))
+					.key("Somethingsecret")
+					.rememberMeParameter("remember-me")
+		.and()
+		.logout()
+		.logoutUrl("/logout")
+		.logoutRequestMatcher(new AntPathRequestMatcher("/logout", "GET"))
+		.clearAuthentication(true)
+		.invalidateHttpSession(true)
+		.deleteCookies("JSESSIONID", "remember-me")
+		.logoutSuccessUrl("/login");
 	}
 	
+	
 	@Override
-	@Bean
-	protected UserDetailsService userDetailsService() {
-		
-		UserDetails michelUser = User.builder()
-		.username("Michael Faraday")
-		.password(passwordEncoder.encode("password"))
-		//.roles(STUDENT.name())
-		.authorities(STUDENT.getGrantedAuthorities())
-		.build();
-		
-		UserDetails lindaUser = User.builder()
-				.username("Linda")
-				.password(passwordEncoder.encode("password123"))
-				//.roles(ADMIN.name())
-				.authorities(ADMIN.getGrantedAuthorities())
-				.build();
-		
-
-		UserDetails tomUser = User.builder()
-				.username("Tom")
-				.password(passwordEncoder.encode("password123"))
-				//.roles(ADMINTRAINEE.name())
-				.authorities(ADMINTRAINEE.getGrantedAuthorities())
-				.build();
-		
-		return new InMemoryUserDetailsManager(michelUser, lindaUser,tomUser);
+	protected void configure(AuthenticationManagerBuilder auth)throws Exception
+	{
+		auth.authenticationProvider(daoAuthenticationProvider());
 	}
+	@Bean
+	public DaoAuthenticationProvider daoAuthenticationProvider()
+	{
+		DaoAuthenticationProvider provider = new DaoAuthenticationProvider();	
+		provider.setPasswordEncoder(passwordEncoder);
+		provider.setUserDetailsService(applicationUserService);
+		return provider;
+	}
+
+	/*
+	 * @Override
+	 * 
+	 * @Bean protected UserDetailsService userDetailsService() {
+	 * 
+	 * UserDetails michelUser = User.builder() .username("Michael Faraday")
+	 * .password(passwordEncoder.encode("password")) //.roles(STUDENT.name())
+	 * .authorities(STUDENT.getGrantedAuthorities()) .build();
+	 * 
+	 * UserDetails lindaUser = User.builder() .username("Linda")
+	 * .password(passwordEncoder.encode("password123")) //.roles(ADMIN.name())
+	 * .authorities(ADMIN.getGrantedAuthorities()) .build();
+	 * 
+	 * 
+	 * UserDetails tomUser = User.builder() .username("Tom")
+	 * .password(passwordEncoder.encode("password123"))
+	 * //.roles(ADMINTRAINEE.name())
+	 * .authorities(ADMINTRAINEE.getGrantedAuthorities()) .build();
+	 * 
+	 * return new InMemoryUserDetailsManager(michelUser, lindaUser,tomUser); }
+	 */
 	
 	
 }
