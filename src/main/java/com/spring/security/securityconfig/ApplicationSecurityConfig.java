@@ -10,6 +10,7 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -18,10 +19,15 @@ import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 
 import com.spring.security.auth.ApplicationUserService;
+import com.spring.security.jwt.JwtConfig;
+import com.spring.security.jwt.JwtTokenVerifier;
+import com.spring.security.jwt.JwtUsernameAndPasswordAuthenticationFilter;
 
 import static com.spring.security.securityconfig.ApplicationUserRole.*;
 
 import java.util.concurrent.TimeUnit;
+
+import javax.crypto.SecretKey;
 
 import static com.spring.security.securityconfig.ApplicationUserPermission.*;
 
@@ -32,11 +38,17 @@ public class ApplicationSecurityConfig extends WebSecurityConfigurerAdapter{
 
 	private final PasswordEncoder passwordEncoder;
 	private final ApplicationUserService applicationUserService;
+	private final JwtConfig jwtConfig;
+	private final SecretKey secretKey;
+	
 	
 	@Autowired
-	public ApplicationSecurityConfig(PasswordEncoder passwordEncoder, ApplicationUserService applicationUserService) {
+	public ApplicationSecurityConfig(PasswordEncoder passwordEncoder, ApplicationUserService applicationUserService
+			,JwtConfig jwtConfig, SecretKey secretKey) {
 		this.applicationUserService = applicationUserService;
 		this.passwordEncoder = passwordEncoder;
+		this.jwtConfig = jwtConfig;
+		this.secretKey = secretKey;
 	}
 	
 	
@@ -44,6 +56,11 @@ public class ApplicationSecurityConfig extends WebSecurityConfigurerAdapter{
 	protected void configure(HttpSecurity http) throws Exception {
 		http
 		.csrf().disable()
+		.sessionManagement()
+			.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+		.and()
+		.addFilter(new JwtUsernameAndPasswordAuthenticationFilter(authenticationManager(), jwtConfig, secretKey))
+		.addFilterAfter(new JwtTokenVerifier(secretKey, jwtConfig), JwtUsernameAndPasswordAuthenticationFilter.class)
 		.authorizeRequests()
 		.antMatchers("/", "index", "css/*", "/js/*").permitAll()
 		.antMatchers("/api/**").hasRole(STUDENT.name())
@@ -58,10 +75,10 @@ public class ApplicationSecurityConfig extends WebSecurityConfigurerAdapter{
 				 * ADMINTRAINEE.name())
 				 */
 		.anyRequest()
-		.authenticated()
-		.and()
+		.authenticated();
+		//.and()
 		//.httpBasic();
-		.formLogin()
+		/*.formLogin()
 		.loginPage("/login")
 		.permitAll()
 		.passwordParameter("password")
@@ -79,7 +96,7 @@ public class ApplicationSecurityConfig extends WebSecurityConfigurerAdapter{
 		.clearAuthentication(true)
 		.invalidateHttpSession(true)
 		.deleteCookies("JSESSIONID", "remember-me")
-		.logoutSuccessUrl("/login");
+		.logoutSuccessUrl("/login");*/
 	}
 	
 	
